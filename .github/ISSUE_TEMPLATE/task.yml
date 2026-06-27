@@ -1,0 +1,85 @@
+name: Implementation Task
+description: A scoped task for Claude to implement in a single PR.
+title: "[task] "
+body:
+  - type: dropdown
+    id: task-type
+    attributes:
+      label: Task type
+      options:
+        - docs
+        - test
+        - ci
+        - repo-hygiene
+        - small-fix
+    validations:
+      required: true
+
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective
+      description: What should this task accomplish? One paragraph.
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: In scope
+      description: List the exact files or changes permitted in the implementing PR.
+    validations:
+      required: true
+
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of scope
+      description: What must not be changed or added in this PR?
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance criteria
+      description: How will a reviewer know this task is done correctly?
+    validations:
+      required: true
+
+  - type: textarea
+    id: validation-commands
+    attributes:
+      label: Validation commands
+      description: Commands to run locally to confirm the implementation is correct.
+      placeholder: |
+        ./scripts/test.sh
+        ./scripts/verify.sh
+    validations:
+      required: true
+
+  - type: textarea
+    id: stop-conditions
+    attributes:
+      label: Risk / STOP conditions
+      description: Situations where the implementer must stop and ask a human before proceeding.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: claude-may-implement
+    attributes:
+      label: Claude may implement this task
+      options:
+        - "Yes"
+        - "No — human only"
+    validations:
+      required: true
+
+  - type: textarea
+    id: human-decision
+    attributes:
+      label: Human decision required
+      description: Any decision that must be made by a human before or after implementation.
+    validations:
+      required: false

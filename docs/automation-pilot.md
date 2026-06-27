@@ -39,11 +39,15 @@ Posted as a PR comment by Claude when the pass completes (success or blocked). T
 
 ## Codex actor status
 
-**TODO — not confirmed.**
+**Confirmed.**
 
-The exact GitHub bot login that submits Codex reviews on this repository has not been confirmed. The workflow `if:` condition currently uses the placeholder `CODEX_ACTOR_TODO_CONFIRM_BEFORE_ENABLE`, which no real account matches. The workflow will not run until a human confirms the actor and updates the placeholder.
+The GitHub bot login that submits Codex reviews on this repository is:
 
-To enable: find the exact GitHub actor login for Codex reviews (e.g. by inspecting a real Codex review via the GitHub API or the PR timeline), then replace `CODEX_ACTOR_TODO_CONFIRM_BEFORE_ENABLE` in `.github/workflows/claude-review-fix-once.yml` with that login.
+```
+chatgpt-codex-connector[bot]
+```
+
+The workflow `if:` condition is set to this exact actor. The workflow will fire only when a review is submitted by `chatgpt-codex-connector[bot]`. All other review actors (humans, other bots) are rejected by the actor guard before any further checks run.
 
 ## Non-goals
 

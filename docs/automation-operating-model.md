@@ -108,7 +108,7 @@ STOP conditions are not blockers to work around; they are signals that a human d
 | PR | Scope |
 |----|-------|
 | PR 1 | `CLAUDE.md` and this operating model document |
-| PR 2 | `scripts/test.sh` and `scripts/verify.sh` |
+| PR 2 | Minimal Python sample code (`product_lab/health.py`), pytest test, `scripts/test.sh`, and `scripts/verify.sh` |
 | PR 3 | GitHub Actions CI workflow |
 | PR 4 | Issue templates and PR template |
 | PR 5 | Labels |

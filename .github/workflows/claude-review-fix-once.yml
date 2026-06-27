@@ -1,0 +1,111 @@
+name: Claude Review Fix Once
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  claude-review-fix:
+    # TODO: Replace CODEX_ACTOR_TODO_CONFIRM_BEFORE_ENABLE with the exact GitHub actor login
+    # (bot username) that submits Codex reviews on this repo before enabling.
+    # Until replaced, this job will never run — no real account has that login.
+    if: github.event.review.user.login == 'CODEX_ACTOR_TODO_CONFIRM_BEFORE_ENABLE'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    concurrency:
+      group: claude-review-fix-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Guard — check labels
+        id: labels
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          LABELS=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json labels --jq '.labels[].name')
+          echo "Labels on PR #$PR_NUMBER:"
+          echo "$LABELS"
+
+          if ! echo "$LABELS" | grep -xF 'claude:ready' > /dev/null; then
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping: claude:ready label not present."
+            exit 0
+          fi
+          if echo "$LABELS" | grep -xF 'claude:blocked' > /dev/null; then
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping: claude:blocked label present."
+            exit 0
+          fi
+          if echo "$LABELS" | grep -xF 'needs:human-decision' > /dev/null; then
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping: needs:human-decision label present."
+            exit 0
+          fi
+          echo "proceed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Guard — check for existing marker
+        id: marker
+        if: steps.labels.outputs.proceed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          MARKER='<!-- claude-review-fix-pass:v1 -->'
+          FOUND=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" \
+            --paginate \
+            --jq '.[].body' | grep -F "$MARKER" || true)
+          if [ -n "$FOUND" ]; then
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping: marker already present — one-pass limit enforced."
+          else
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run Claude review-fix pass
+        if: steps.labels.outputs.proceed == 'true' && steps.marker.outputs.proceed == 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: --max-turns 5
+          direct_prompt: |
+            You are performing ONE review-fix pass on this PR. Read all constraints before acting.
+
+            HARD CONSTRAINTS — violating any of these is not permitted:
+            - Address only the Codex review feedback on this PR. Do not fix unrelated things.
+            - Do NOT merge the PR.
+            - Do NOT enable auto-merge.
+            - Do NOT alter branch protection.
+            - Do NOT add secrets or credentials.
+            - Do NOT create orchestration infrastructure, dashboards, parsers, or validators.
+            - Do NOT reference or reuse l5-adf code or design.
+            - This is your ONLY pass. Do not expect or request a second pass.
+
+            STEPS — follow in order:
+            1. Read the latest Codex review on this PR using gh CLI (e.g. gh pr view --json reviews,reviewComments).
+            2. If scripts/test.sh exists, run it first to confirm baseline passes.
+            3. Address the Codex review feedback by editing files on this branch.
+            4. If scripts/test.sh exists, run it again to confirm tests still pass after changes.
+            5. If scripts/verify.sh exists, run it to confirm verification passes.
+            6. If changes were made, commit them to this branch with a short descriptive commit message.
+            7. Post this exact comment on the PR (use gh pr comment or gh api):
+               <!-- claude-review-fix-pass:v1 -->
+               Claude review-fix pass complete.
+            8. If blocked or unable to safely address the feedback, post this instead:
+               <!-- claude-review-fix-pass:v1 -->
+               BLOCKED: [short plain-English reason — no sensitive details]
+
+            Do not loop. Do not merge. Do not request a second pass.

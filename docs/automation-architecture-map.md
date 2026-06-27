@@ -64,7 +64,7 @@ The long-term goal is Level 5. Each level is a gate, not a phase to rush through
 - Batch review comments rather than triggering a Claude run for each one.
 - Keep `--max-turns` low (currently 5).
 - Keep workflow `timeout-minutes` short (currently 15).
-- Keep concurrency controls in place to cancel duplicate runs.
+- Keep concurrency controls in place to group duplicate runs for the same PR or issue. The current workflow sets `cancel-in-progress: false`, so it does not cancel an active Claude run; changing cancellation behavior must be a deliberate later workflow change.
 - Avoid scheduled Claude workflow runs.
 - Avoid triggering Claude on every `pull_request` opened/synchronize event until there is a clear cost-justified reason.
 - Keep issue and PR prompts specific and bounded.

@@ -46,7 +46,7 @@ The forbidden command modifies the current PR branch directly.
 
 ## Deliberate review target
 
-This section intentionally says the experiment allows docs-only or lint-only changes.
+This section intentionally says the experiment allows documentation-only or test-only changes.
 
 That sentence should be aligned with the allowed change types above before this experiment is considered complete.
 

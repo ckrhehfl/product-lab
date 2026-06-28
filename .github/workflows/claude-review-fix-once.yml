@@ -75,7 +75,25 @@ jobs:
             echo "proceed=true" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Fetch triggering Codex review context
+        if: steps.labels.outputs.proceed == 'true' && steps.marker.outputs.proceed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REVIEW_ID: ${{ github.event.review.id }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir -p .claude-review-context
+          gh api "repos/$REPO/pulls/$PR_NUMBER/reviews/$REVIEW_ID" \
+            > .claude-review-context/review.json
+          gh api "repos/$REPO/pulls/$PR_NUMBER/comments" --paginate \
+            --jq "[.[] | select(.pull_request_review_id == ($REVIEW_ID | tonumber))]" \
+            > .claude-review-context/comments.json
+
       - name: Run Claude review-fix pass
+        id: claude
+        continue-on-error: true
         if: steps.labels.outputs.proceed == 'true' && steps.marker.outputs.proceed == 'true'
         uses: anthropics/claude-code-action@v1
         with:
@@ -84,7 +102,7 @@ jobs:
           claude_args: >-
             --max-turns 5
             --permission-mode acceptEdits
-            --allowedTools Read,Edit,Write,Bash(git status*),Bash(git diff*),Bash(git add*),Bash(git commit*),Bash(git push*),Bash(git config*),Bash(gh api*),Bash(gh pr comment*)
+            --allowedTools Read,Edit,Write,Bash(git status*),Bash(git diff*),Bash(git add*),Bash(git commit*),Bash(git push*),Bash(git config*)
           prompt: |
             You are performing ONE review-fix pass on this PR. Read all constraints before acting.
 
@@ -97,30 +115,52 @@ jobs:
             - Do NOT create orchestration infrastructure, dashboards, parsers, or validators.
             - Do NOT reference or reuse l5-adf code or design.
             - This is your ONLY pass. Do not expect or request a second pass.
-            - Do NOT run PR-controlled scripts, including scripts/test.sh or scripts/verify.sh. This
-              job runs with ANTHROPIC_API_KEY and write-capable GitHub credentials. Running PR-owned
-              shell scripts in this context is not safe. The normal CI workflow is responsible for
-              running tests and verification after this job pushes changes. If you cannot safely
-              address the feedback without running test scripts, post the BLOCKED marker instead.
+            - Do NOT run PR-controlled scripts, including scripts/test.sh or scripts/verify.sh.
+              This job runs with ANTHROPIC_API_KEY and write-capable GitHub credentials.
+              The normal CI workflow is responsible for running tests after this job pushes.
+            - Do NOT run gh api, gh pr comment, or any gh command. You do not have gh permission.
+              A trusted workflow step posts the one-pass marker after you finish.
+            - Do NOT post any PR comment. The marker is posted by a trusted step after you.
 
             STEPS — follow in order:
-            1. Read only the triggering Codex review for this workflow run:
-               - Triggering review submission:
-                 gh api "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews/${{ github.event.review.id }}"
-               - Inline review comments for the triggering review only:
-                 gh api "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/comments" --paginate --jq '[.[] | select(.pull_request_review_id == ${{ github.event.review.id }})]'
-               Use only feedback from this triggering review by chatgpt-codex-connector[bot].
+            1. Read the triggering Codex review from local files prepared before this step:
+               - .claude-review-context/review.json   — the triggering review body and metadata
+               - .claude-review-context/comments.json — inline comments for this review
+               Use only feedback from these files. Do not call gh api or any shell network command.
             2. Address the Codex review feedback by reading and editing files on this branch.
-               Do not run any scripts from the repository.
+               Do not run any scripts or gh commands.
             3. If changes were made:
                - commit them to this branch with a short descriptive commit message
-               - push the commit to the PR branch
-               - verify the push succeeded before posting the marker
-            4. Post this exact comment on the PR only after any created commit has been pushed successfully (use gh pr comment or gh api):
-               <!-- claude-review-fix-pass:v1 -->
-               Claude review-fix pass complete.
-            5. If blocked or unable to safely address the feedback, post this instead:
-               <!-- claude-review-fix-pass:v1 -->
-               BLOCKED: [short plain-English reason — no sensitive details]
+               - push the commit to the PR branch using git push
+               A trusted workflow step will verify the push and post the marker after you finish.
+            4. If you cannot safely address the feedback, exit without pushing.
+               The trusted marker step will detect this and post a BLOCKED marker.
 
-            Do not loop. Do not merge. Do not request a second pass.
+            Do not loop. Do not merge. Do not request a second pass. Do not post any PR comment.
+
+      - name: Post one-pass marker
+        if: steps.labels.outputs.proceed == 'true' && steps.marker.outputs.proceed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          LOCAL_HEAD=$(git rev-parse HEAD)
+          REMOTE_HEAD=$(git ls-remote origin "refs/heads/$HEAD_REF" | awk '{print $1}')
+
+          if [ "${{ steps.claude.outcome }}" != "success" ]; then
+            BODY=$'<!-- claude-review-fix-pass:v1 -->\nBLOCKED: Claude review-fix pass failed before completing safely.'
+            gh pr comment "$PR_NUMBER" --repo "$REPO" --body "$BODY"
+            exit 1
+          fi
+
+          if [ "$LOCAL_HEAD" != "$REMOTE_HEAD" ]; then
+            BODY=$'<!-- claude-review-fix-pass:v1 -->\nBLOCKED: Claude review-fix pass did not push commits to the PR branch.'
+            gh pr comment "$PR_NUMBER" --repo "$REPO" --body "$BODY"
+            exit 1
+          fi
+
+          BODY=$'<!-- claude-review-fix-pass:v1 -->\nClaude review-fix pass complete.'
+          gh pr comment "$PR_NUMBER" --repo "$REPO" --body "$BODY"

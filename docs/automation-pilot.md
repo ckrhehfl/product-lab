@@ -35,13 +35,15 @@ If any guard fails the job exits immediately without invoking Claude.
 
 `<!-- claude-review-fix-pass:v1 -->`
 
-Posted as a PR comment by Claude when the pass completes (success or blocked). The marker check runs before Claude is invoked, enforcing the one-pass limit even if the workflow fires again.
+Posted as a PR comment by a **trusted post-Claude workflow step** (`Post one-pass marker`) when the pass completes. The marker check runs before Claude is invoked, enforcing the one-pass limit even if the workflow fires again.
 
-Claude is instructed to post the marker only after:
-- any created fix commit has been pushed to the PR branch and the push is verified as successful, or
-- Claude is blocked and posts a `BLOCKED:` marker instead.
+The trusted marker step does **not** receive `ANTHROPIC_API_KEY`. It uses only `GH_TOKEN` (the standard `GITHUB_TOKEN`). Claude is explicitly instructed not to post any PR comment — the marker step handles it.
 
-This prevents the marker from being posted before the fix commit is on the PR branch, which would falsely signal completion while leaving fixes undelivered. No custom controller or parser enforces this — it is a prompt-level instruction.
+The marker step posts the completion marker only when:
+1. The Claude action exited successfully (`steps.claude.outcome == 'success'`), **and**
+2. The local HEAD matches the remote HEAD of the PR branch (verifying that any fix commits were actually pushed).
+
+If either condition fails, the marker step posts a `BLOCKED:` marker instead and exits non-zero (failing the job). This prevents the completion marker from being posted while fixes were not actually delivered to the branch.
 
 ## Codex actor status
 
@@ -86,12 +88,15 @@ The marker guard uses `set -euo pipefail` before fetching PR comments. If the `g
 
 ## Review fetch commands
 
-Claude fetches only the triggering Codex review using `github.event.review.id`:
+The triggering Codex review is fetched by a **trusted pre-Claude workflow step** (`Fetch triggering Codex review context`) that runs before the Claude action. This step uses `GH_TOKEN` but does **not** receive `ANTHROPIC_API_KEY`.
 
-- Triggering review submission: `gh api "repos/{owner}/{repo}/pulls/{number}/reviews/{review_id}"`
-- Inline comments for that review only: `gh api "repos/{owner}/{repo}/pulls/{number}/comments" --paginate --jq '[.[] | select(.pull_request_review_id == {review_id})]'`
+It writes two local files:
+- `.claude-review-context/review.json` — the triggering review body and metadata
+- `.claude-review-context/comments.json` — inline comments scoped to this review only
 
-Using the event's review ID scopes the fetch to the single review that triggered the workflow, avoiding stale feedback from older Codex reviews. No custom parser is introduced; Claude reads the raw JSON directly.
+Claude reads these local files instead of calling `gh api`. Claude does not have `gh` Bash access.
+
+Using `github.event.review.id` scopes the fetch to the single review that triggered the workflow, avoiding stale feedback from older Codex reviews. No custom parser is introduced; Claude reads the raw JSON directly.
 
 `gh pr view --json reviewComments` is not used because `reviewComments` is not a supported field.
 
@@ -111,11 +116,10 @@ The Claude action runs with scoped CLI flags:
 --permission-mode acceptEdits
 --allowedTools Read,Edit,Write,
   Bash(git status*),Bash(git diff*),Bash(git add*),Bash(git commit*),
-  Bash(git push*),Bash(git config*),
-  Bash(gh api*),Bash(gh pr comment*)
+  Bash(git push*),Bash(git config*)
 ```
 
-`--dangerously-skip-permissions`, `--permission-mode bypassPermissions`, `Bash(*)`, and any broad shell access are not used. The tool list covers only what is needed for: reading/editing files, committing, pushing, and posting a PR comment via `gh`. Repository test scripts (`scripts/test.sh`, `scripts/verify.sh`) are explicitly excluded — see [Test script isolation](#test-script-isolation).
+`--dangerously-skip-permissions`, `--permission-mode bypassPermissions`, `Bash(*)`, `Bash(gh api*)`, `Bash(gh pr comment*)`, and any broad shell access are not used. The tool list covers only what is needed for: reading/editing files, committing, and pushing. `gh` commands are not permitted inside the Claude action — review context is fetched by a trusted pre-Claude step, and the marker is posted by a trusted post-Claude step. Both trusted steps use `GH_TOKEN` only and do not receive `ANTHROPIC_API_KEY`. Repository test scripts are also excluded — see [Test script isolation](#test-script-isolation).
 
 ## Non-goals
 
@@ -133,6 +137,7 @@ The Claude action runs with scoped CLI flags:
 | Custom orchestrator/validator/parser | Not present |
 | Sandbox / trusted test runner | Not present — test isolation is achieved by removing script execution from allowed tools |
 | PR-controlled script execution in Claude job | Not permitted — `scripts/test.sh` and `scripts/verify.sh` are excluded from allowed tools and explicitly forbidden in the prompt |
+| `gh` Bash access for Claude | Not permitted — `gh api` and `gh pr comment` are removed from Claude's allowed tools; review context and marker posting are handled by trusted steps without `ANTHROPIC_API_KEY` |
 
 ## STOP conditions
 

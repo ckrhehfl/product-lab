@@ -37,6 +37,12 @@ If any guard fails the job exits immediately without invoking Claude.
 
 Posted as a PR comment by Claude when the pass completes (success or blocked). The marker check runs before Claude is invoked, enforcing the one-pass limit even if the workflow fires again.
 
+Claude is instructed to post the marker only after:
+- any created fix commit has been pushed to the PR branch and the push is verified as successful, or
+- Claude is blocked and posts a `BLOCKED:` marker instead.
+
+This prevents the marker from being posted before the fix commit is on the PR branch, which would falsely signal completion while leaving fixes undelivered. No custom controller or parser enforces this — it is a prompt-level instruction.
+
 ## Codex actor status
 
 **Confirmed.**

@@ -121,8 +121,11 @@ jobs:
             3. Address the Codex review feedback by editing files on this branch.
             4. If scripts/test.sh exists, run it again to confirm tests still pass after changes.
             5. If scripts/verify.sh exists, run it to confirm verification passes.
-            6. If changes were made, commit them to this branch with a short descriptive commit message.
-            7. Post this exact comment on the PR (use gh pr comment or gh api):
+            6. If changes were made:
+               - commit them to this branch with a short descriptive commit message
+               - push the commit to the PR branch
+               - verify the push succeeded before posting the marker
+            7. Post this exact comment on the PR only after any created commit has been pushed successfully (use gh pr comment or gh api):
                <!-- claude-review-fix-pass:v1 -->
                Claude review-fix pass complete.
             8. If blocked or unable to safely address the feedback, post this instead:

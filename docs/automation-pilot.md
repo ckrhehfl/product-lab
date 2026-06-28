@@ -47,7 +47,15 @@ The GitHub bot login that submits Codex reviews on this repository is:
 chatgpt-codex-connector[bot]
 ```
 
-The workflow `if:` condition is set to this exact actor. The workflow will fire only when a review is submitted by `chatgpt-codex-connector[bot]`. All other review actors (humans, other bots) are rejected by the actor guard before any further checks run.
+The job-level `if:` condition guards on both the actor and the repository:
+
+```yaml
+if: >
+  github.event.review.user.login == 'chatgpt-codex-connector[bot]' &&
+  github.event.pull_request.head.repo.full_name == github.repository
+```
+
+The workflow runs only when the review is submitted by `chatgpt-codex-connector[bot]` **and** the PR is from the same repository. Fork PRs are intentionally skipped — this pilot does not support fork-originated PRs and does not use custom fork remotes or tokens.
 
 ## Claude action bot allowance
 
@@ -84,6 +92,21 @@ Using the event's review ID scopes the fetch to the single review that triggered
 ## Python/pytest setup
 
 Before invoking Claude, the workflow sets up Python 3.11 and installs pytest so that `scripts/test.sh` can run inside the Claude pass. No new dependency manager is added; this matches the existing CI pattern.
+
+## Claude Code CLI permission scope
+
+The Claude action runs with scoped CLI flags:
+
+```
+--permission-mode acceptEdits
+--allowedTools Read,Edit,Write,
+  Bash(git status*),Bash(git diff*),Bash(git add*),Bash(git commit*),
+  Bash(git push*),Bash(git config*),
+  Bash(bash scripts/test.sh),Bash(bash scripts/verify.sh),
+  Bash(gh api*),Bash(gh pr comment*)
+```
+
+`--dangerously-skip-permissions`, `--permission-mode bypassPermissions`, `Bash(*)`, and any broad shell access are not used. The tool list covers only what is needed for: reading/editing files, running the test suite, committing, pushing, and posting a PR comment via `gh`.
 
 ## Non-goals
 

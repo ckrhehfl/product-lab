@@ -6,7 +6,9 @@ on:
 
 jobs:
   claude-review-fix:
-    if: github.event.review.user.login == 'chatgpt-codex-connector[bot]'
+    if: >
+      github.event.review.user.login == 'chatgpt-codex-connector[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -91,7 +93,10 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           allowed_bots: chatgpt-codex-connector[bot]
-          claude_args: --max-turns 5
+          claude_args: >-
+            --max-turns 5
+            --permission-mode acceptEdits
+            --allowedTools Read,Edit,Write,Bash(git status*),Bash(git diff*),Bash(git add*),Bash(git commit*),Bash(git push*),Bash(git config*),Bash(bash scripts/test.sh),Bash(bash scripts/verify.sh),Bash(gh api*),Bash(gh pr comment*)
           prompt: |
             You are performing ONE review-fix pass on this PR. Read all constraints before acting.
 

@@ -73,6 +73,18 @@ jobs:
             echo "proceed=true" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Set up Python
+        if: steps.labels.outputs.proceed == 'true' && steps.marker.outputs.proceed == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install test dependencies
+        if: steps.labels.outputs.proceed == 'true' && steps.marker.outputs.proceed == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest
+
       - name: Run Claude review-fix pass
         if: steps.labels.outputs.proceed == 'true' && steps.marker.outputs.proceed == 'true'
         uses: anthropics/claude-code-action@v1
@@ -94,12 +106,12 @@ jobs:
             - This is your ONLY pass. Do not expect or request a second pass.
 
             STEPS — follow in order:
-            1. Read the latest Codex review on this PR:
-               - Review submissions:
-                 gh api "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews" --paginate
-               - Inline review comments:
-                 gh api "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/comments" --paginate
-               Use only feedback from chatgpt-codex-connector[bot].
+            1. Read only the triggering Codex review for this workflow run:
+               - Triggering review submission:
+                 gh api "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews/${{ github.event.review.id }}"
+               - Inline review comments for the triggering review only:
+                 gh api "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/comments" --paginate --jq '[.[] | select(.pull_request_review_id == ${{ github.event.review.id }})]'
+               Use only feedback from this triggering review by chatgpt-codex-connector[bot].
             2. If scripts/test.sh exists, run it first to confirm baseline passes.
             3. Address the Codex review feedback by editing files on this branch.
             4. If scripts/test.sh exists, run it again to confirm tests still pass after changes.

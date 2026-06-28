@@ -72,12 +72,18 @@ The marker guard uses `set -euo pipefail` before fetching PR comments. If the `g
 
 ## Review fetch commands
 
-Claude fetches the Codex review via two supported GitHub API endpoints:
+Claude fetches only the triggering Codex review using `github.event.review.id`:
 
-- Review submissions: `gh api "repos/{owner}/{repo}/pulls/{number}/reviews" --paginate`
-- Inline review comments: `gh api "repos/{owner}/{repo}/pulls/{number}/comments" --paginate`
+- Triggering review submission: `gh api "repos/{owner}/{repo}/pulls/{number}/reviews/{review_id}"`
+- Inline comments for that review only: `gh api "repos/{owner}/{repo}/pulls/{number}/comments" --paginate --jq '[.[] | select(.pull_request_review_id == {review_id})]'`
 
-`gh pr view --json reviewComments` is not used because `reviewComments` is not a supported field. No custom parser is introduced; Claude reads the raw JSON from these endpoints directly.
+Using the event's review ID scopes the fetch to the single review that triggered the workflow, avoiding stale feedback from older Codex reviews. No custom parser is introduced; Claude reads the raw JSON directly.
+
+`gh pr view --json reviewComments` is not used because `reviewComments` is not a supported field.
+
+## Python/pytest setup
+
+Before invoking Claude, the workflow sets up Python 3.11 and installs pytest so that `scripts/test.sh` can run inside the Claude pass. No new dependency manager is added; this matches the existing CI pattern.
 
 ## Non-goals
 

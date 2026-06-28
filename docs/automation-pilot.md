@@ -95,9 +95,13 @@ Using the event's review ID scopes the fetch to the single review that triggered
 
 `gh pr view --json reviewComments` is not used because `reviewComments` is not a supported field.
 
-## Python/pytest setup
+## Test script isolation
 
-Before invoking Claude, the workflow sets up Python 3.11 and installs pytest so that `scripts/test.sh` can run inside the Claude pass. No new dependency manager is added; this matches the existing CI pattern.
+The Claude review-fix workflow intentionally does not run `scripts/test.sh` or `scripts/verify.sh`. This job runs with `ANTHROPIC_API_KEY` and write-capable GitHub credentials (`contents: write`, `pull-requests: write`). Executing PR-controlled shell scripts in that context would allow a labeled same-repo PR to run arbitrary code while secrets are present.
+
+Tests and verification are delegated entirely to the existing CI workflow, which runs after the Claude job pushes any fix commits to the PR branch. No sandbox, trusted test runner, or custom controller is introduced — the separation is enforced purely by removing script execution from Claude's allowed tools and adding an explicit hard constraint in the prompt.
+
+The Python/pytest setup steps that previously appeared in this workflow have been removed for the same reason.
 
 ## Claude Code CLI permission scope
 
@@ -108,11 +112,10 @@ The Claude action runs with scoped CLI flags:
 --allowedTools Read,Edit,Write,
   Bash(git status*),Bash(git diff*),Bash(git add*),Bash(git commit*),
   Bash(git push*),Bash(git config*),
-  Bash(bash scripts/test.sh),Bash(bash scripts/verify.sh),
   Bash(gh api*),Bash(gh pr comment*)
 ```
 
-`--dangerously-skip-permissions`, `--permission-mode bypassPermissions`, `Bash(*)`, and any broad shell access are not used. The tool list covers only what is needed for: reading/editing files, running the test suite, committing, pushing, and posting a PR comment via `gh`.
+`--dangerously-skip-permissions`, `--permission-mode bypassPermissions`, `Bash(*)`, and any broad shell access are not used. The tool list covers only what is needed for: reading/editing files, committing, pushing, and posting a PR comment via `gh`. Repository test scripts (`scripts/test.sh`, `scripts/verify.sh`) are explicitly excluded — see [Test script isolation](#test-script-isolation).
 
 ## Non-goals
 
@@ -128,6 +131,8 @@ The Claude action runs with scoped CLI flags:
 | Codex↔Claude loop | Prevented by actor guard + marker guard |
 | l5-adf reuse | Explicitly forbidden in Claude instructions |
 | Custom orchestrator/validator/parser | Not present |
+| Sandbox / trusted test runner | Not present — test isolation is achieved by removing script execution from allowed tools |
+| PR-controlled script execution in Claude job | Not permitted — `scripts/test.sh` and `scripts/verify.sh` are excluded from allowed tools and explicitly forbidden in the prompt |
 
 ## STOP conditions
 

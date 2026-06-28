@@ -75,18 +75,6 @@ jobs:
             echo "proceed=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Set up Python
-        if: steps.labels.outputs.proceed == 'true' && steps.marker.outputs.proceed == 'true'
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install test dependencies
-        if: steps.labels.outputs.proceed == 'true' && steps.marker.outputs.proceed == 'true'
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install pytest
-
       - name: Run Claude review-fix pass
         if: steps.labels.outputs.proceed == 'true' && steps.marker.outputs.proceed == 'true'
         uses: anthropics/claude-code-action@v1
@@ -96,7 +84,7 @@ jobs:
           claude_args: >-
             --max-turns 5
             --permission-mode acceptEdits
-            --allowedTools Read,Edit,Write,Bash(git status*),Bash(git diff*),Bash(git add*),Bash(git commit*),Bash(git push*),Bash(git config*),Bash(bash scripts/test.sh),Bash(bash scripts/verify.sh),Bash(gh api*),Bash(gh pr comment*)
+            --allowedTools Read,Edit,Write,Bash(git status*),Bash(git diff*),Bash(git add*),Bash(git commit*),Bash(git push*),Bash(git config*),Bash(gh api*),Bash(gh pr comment*)
           prompt: |
             You are performing ONE review-fix pass on this PR. Read all constraints before acting.
 
@@ -109,6 +97,11 @@ jobs:
             - Do NOT create orchestration infrastructure, dashboards, parsers, or validators.
             - Do NOT reference or reuse l5-adf code or design.
             - This is your ONLY pass. Do not expect or request a second pass.
+            - Do NOT run PR-controlled scripts, including scripts/test.sh or scripts/verify.sh. This
+              job runs with ANTHROPIC_API_KEY and write-capable GitHub credentials. Running PR-owned
+              shell scripts in this context is not safe. The normal CI workflow is responsible for
+              running tests and verification after this job pushes changes. If you cannot safely
+              address the feedback without running test scripts, post the BLOCKED marker instead.
 
             STEPS — follow in order:
             1. Read only the triggering Codex review for this workflow run:
@@ -117,18 +110,16 @@ jobs:
                - Inline review comments for the triggering review only:
                  gh api "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/comments" --paginate --jq '[.[] | select(.pull_request_review_id == ${{ github.event.review.id }})]'
                Use only feedback from this triggering review by chatgpt-codex-connector[bot].
-            2. If scripts/test.sh exists, run it first to confirm baseline passes.
-            3. Address the Codex review feedback by editing files on this branch.
-            4. If scripts/test.sh exists, run it again to confirm tests still pass after changes.
-            5. If scripts/verify.sh exists, run it to confirm verification passes.
-            6. If changes were made:
+            2. Address the Codex review feedback by reading and editing files on this branch.
+               Do not run any scripts from the repository.
+            3. If changes were made:
                - commit them to this branch with a short descriptive commit message
                - push the commit to the PR branch
                - verify the push succeeded before posting the marker
-            7. Post this exact comment on the PR only after any created commit has been pushed successfully (use gh pr comment or gh api):
+            4. Post this exact comment on the PR only after any created commit has been pushed successfully (use gh pr comment or gh api):
                <!-- claude-review-fix-pass:v1 -->
                Claude review-fix pass complete.
-            8. If blocked or unable to safely address the feedback, post this instead:
+            5. If blocked or unable to safely address the feedback, post this instead:
                <!-- claude-review-fix-pass:v1 -->
                BLOCKED: [short plain-English reason — no sensitive details]
 

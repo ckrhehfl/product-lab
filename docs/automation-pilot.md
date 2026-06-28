@@ -49,6 +49,23 @@ chatgpt-codex-connector[bot]
 
 The workflow `if:` condition is set to this exact actor. The workflow will fire only when a review is submitted by `chatgpt-codex-connector[bot]`. All other review actors (humans, other bots) are rejected by the actor guard before any further checks run.
 
+## Claude action bot allowance
+
+`allowed_bots: chatgpt-codex-connector[bot]`
+
+Set narrowly to the exact Codex bot. The `anthropics/claude-code-action@v1` action in agent mode (i.e. when `prompt` is supplied) requires non-User actors to be listed in `allowed_bots`. Wildcard (`"*"`) is explicitly not used. No other bots are permitted.
+
+## Checkout safety
+
+The checkout step checks out the PR head branch and repository directly:
+
+```yaml
+repository: ${{ github.event.pull_request.head.repo.full_name }}
+ref: ${{ github.event.pull_request.head.ref }}
+```
+
+This ensures Claude's commits land on the PR head branch, not a detached merge commit or the workflow's default merge ref, which could cause the commit/push to fail or go to the wrong branch.
+
 ## Non-goals
 
 | Non-goal | Status |

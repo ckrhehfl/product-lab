@@ -23,6 +23,8 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 1
 
       - name: Guard — check labels
@@ -77,6 +79,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          allowed_bots: chatgpt-codex-connector[bot]
           claude_args: --max-turns 5
           prompt: |
             You are performing ONE review-fix pass on this PR. Read all constraints before acting.

@@ -63,11 +63,10 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
         run: |
+          set -euo pipefail
           MARKER='<!-- claude-review-fix-pass:v1 -->'
-          FOUND=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" \
-            --paginate \
-            --jq '.[].body' | grep -F "$MARKER" || true)
-          if [ -n "$FOUND" ]; then
+          COMMENTS=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" --paginate --jq '.[].body')
+          if printf '%s\n' "$COMMENTS" | grep -F "$MARKER" > /dev/null; then
             echo "proceed=false" >> "$GITHUB_OUTPUT"
             echo "Skipping: marker already present — one-pass limit enforced."
           else
@@ -95,7 +94,12 @@ jobs:
             - This is your ONLY pass. Do not expect or request a second pass.
 
             STEPS — follow in order:
-            1. Read the latest Codex review on this PR using gh CLI (e.g. gh pr view --json reviews,reviewComments).
+            1. Read the latest Codex review on this PR:
+               - Review submissions:
+                 gh api "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews" --paginate
+               - Inline review comments:
+                 gh api "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/comments" --paginate
+               Use only feedback from chatgpt-codex-connector[bot].
             2. If scripts/test.sh exists, run it first to confirm baseline passes.
             3. Address the Codex review feedback by editing files on this branch.
             4. If scripts/test.sh exists, run it again to confirm tests still pass after changes.

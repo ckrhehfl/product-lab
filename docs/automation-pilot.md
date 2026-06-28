@@ -66,6 +66,19 @@ ref: ${{ github.event.pull_request.head.ref }}
 
 This ensures Claude's commits land on the PR head branch, not a detached merge commit or the workflow's default merge ref, which could cause the commit/push to fail or go to the wrong branch.
 
+## Marker guard — fail-closed behavior
+
+The marker guard uses `set -euo pipefail` before fetching PR comments. If the `gh api` call fails (e.g. network error, permission error), the step exits non-zero and the job fails before Claude is invoked. Only the `grep` no-match case (marker absent) is treated as non-fatal, which correctly sets `proceed=true`. A `gh api` failure is never silently treated as "marker absent".
+
+## Review fetch commands
+
+Claude fetches the Codex review via two supported GitHub API endpoints:
+
+- Review submissions: `gh api "repos/{owner}/{repo}/pulls/{number}/reviews" --paginate`
+- Inline review comments: `gh api "repos/{owner}/{repo}/pulls/{number}/comments" --paginate`
+
+`gh pr view --json reviewComments` is not used because `reviewComments` is not a supported field. No custom parser is introduced; Claude reads the raw JSON from these endpoints directly.
+
 ## Non-goals
 
 | Non-goal | Status |

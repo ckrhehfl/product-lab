@@ -109,3 +109,7 @@ The first CodeRabbit experiment is successful if:
 - No unsafe repository settings are changed.
 - No current-branch Autofix is used.
 - The Implementation PM can summarize the PR with an A/B/C/D grade.
+
+## Evaluation results
+
+See `docs/coderabbit-evaluation-results.md` for the initial evaluation results.

@@ -132,3 +132,7 @@ Escalate immediately if the change includes:
 After CodeRabbit is installed by the repository owner, the first experiment PR must be docs-only or tests-only.
 
 The first Autofix experiment must use stacked PR mode only.
+
+## Evaluation results
+
+See `docs/coderabbit-evaluation-results.md` for the initial evaluation results.

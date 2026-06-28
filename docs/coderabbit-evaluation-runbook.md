@@ -14,7 +14,8 @@ Allowed initial PR types:
 
 - documentation-only changes
 - test-only changes
-- lint-only changes
+
+Lint-only changes may be evaluated later, after the first CodeRabbit experiment succeeds.
 
 Not allowed during the initial evaluation:
 
@@ -85,6 +86,11 @@ The forbidden command modifies the current PR branch directly. Current-branch Au
 
 Escalate immediately if the change includes:
 
+- a required tool or pattern that is not in the approved toolchain
+- more than one logical concern to be coherent
+- a CI failure whose fix is not derivable from the error output alone
+- a branch divergence from `main` that is not straightforwardly resolvable
+- ambiguity about whether an action falls inside the hard boundaries
 - secrets, tokens, or keys
 - GitHub Actions permissions
 - branch protection or auto-merge changes
